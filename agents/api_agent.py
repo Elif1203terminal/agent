@@ -1,8 +1,6 @@
-"""API Agent - generates REST API applications."""
+"""API Agent - generates REST API applications using Claude."""
 
-import re
 from agents.base import BaseAgent
-from utils.template_engine import render_template
 
 
 class ApiAgent(BaseAgent):
@@ -10,78 +8,42 @@ class ApiAgent(BaseAgent):
     description = "Generates REST APIs with FastAPI or Flask"
     category = "api"
 
-    def _extract_resource(self, request):
-        """Extract the resource name from the request."""
-        lower = request.lower()
-        # Try to find "for <resource>" pattern
-        match = re.search(r"(?:for|of)\s+(\w+(?:\s+\w+)?)\s*(?:management|tracking|system)?", lower)
-        if match:
-            resource = match.group(1).strip()
-            # Remove "management", "tracking" etc.
-            for suffix in ("management", "tracking", "system", "service"):
-                resource = resource.replace(suffix, "").strip()
-            return resource or "items"
-        return "items"
+    system_prompt = """You are a code generation agent that creates REST API applications.
 
-    def _singularize(self, word):
-        """Very basic singularization."""
-        if word.endswith("ies"):
-            return word[:-3] + "y"
-        if word.endswith("ses"):
-            return word[:-2]
-        if word.endswith("s") and not word.endswith("ss"):
-            return word[:-1]
-        return word
+When the user describes what they want, generate a complete, working API project.
 
-    def _pluralize(self, word):
-        """Very basic pluralization."""
-        if word.endswith("y") and word[-2] not in "aeiou":
-            return word[:-1] + "ies"
-        if word.endswith(("s", "sh", "ch", "x", "z")):
-            return word + "es"
-        return word + "s"
+RULES:
+- Use FastAPI by default (with Pydantic models)
+- Generate at minimum: app.py, models.py, requirements.txt
+- Include full CRUD endpoints (list, get, create, update, delete)
+- Use in-memory storage (dict) — no database required
+- Include proper HTTP status codes and error handling
+- Model fields should be relevant to what the user asked for (not generic name/description)
+- The app should be runnable with `uvicorn app:app --reload` or `python app.py`
+- requirements.txt should list fastapi>=0.100, uvicorn>=0.23, and any other packages
+
+OUTPUT FORMAT:
+Return each file as a fenced code block with the filepath as the language tag:
+
+```app.py
+...
+```
+
+```models.py
+...
+```
+
+```requirements.txt
+...
+```
+
+Only output the code blocks. No explanations."""
 
     def generate(self, request, output_dir):
-        resource_raw = self._extract_resource(request)
-        singular = self._singularize(resource_raw)
-        plural = self._pluralize(singular)
-        model_name = singular.capitalize()
-        files = []
-
-        # Use FastAPI template
-        content = render_template("api", "fastapi_crud.py.tpl", {
-            "app_name": f"{model_name} API",
-            "model_name": model_name,
-            "model_fields_create": f'name: str\n    description: Optional[str] = None',
-            "model_fields_response": f'name: str\n    description: Optional[str] = None',
-            "resource": plural,
-        })
-        files.append(self.write_file(output_dir, "app.py", content))
-
-        # models.py
-        content = render_template("api", "models.py.tpl", {
-            "app_name": f"{model_name} API",
-            "model_name": model_name,
-            "resource_singular": singular,
-            "init_params": "self, name, description=None",
-            "init_body": f"self.name = name\n        self.description = description",
-            "to_dict_body": f'"name": self.name,\n            "description": self.description,',
-            "repr_fields": f'name={{self.name!r}}',
-        })
-        files.append(self.write_file(output_dir, "models.py", content))
-
-        # requirements.txt
-        files.append(self.write_file(output_dir, "requirements.txt", "fastapi>=0.100\nuvicorn>=0.23\n"))
-
-        return files
+        return self._generate_with_llm(request, output_dir)
 
     def plan(self, request):
-        resource_raw = self._extract_resource(request)
-        singular = self._singularize(resource_raw)
-        model_name = singular.capitalize()
         return [
-            f"[api] Create FastAPI CRUD app for {model_name}",
-            "[api] Generate app.py with list/get/create/update/delete endpoints",
-            "[api] Generate models.py",
-            "[api] Generate requirements.txt",
+            f"[api] Ask Claude to design a REST API for: {request}",
+            "[api] Generate app.py, models.py, requirements.txt",
         ]

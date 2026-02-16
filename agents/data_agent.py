@@ -1,8 +1,6 @@
-"""Data Agent - generates data analysis and CSV processing scripts."""
+"""Data Agent - generates data analysis scripts using Claude."""
 
-import os
 from agents.base import BaseAgent
-from utils.template_engine import render_template
 
 
 class DataAgent(BaseAgent):
@@ -10,67 +8,42 @@ class DataAgent(BaseAgent):
     description = "Generates data analysis scripts with pandas and matplotlib"
     category = "data"
 
-    def _detect_type(self, request):
-        lower = request.lower()
-        if any(w in lower for w in ("visuali", "chart", "plot", "graph")):
-            return "visualizer"
-        if any(w in lower for w in ("csv", "process", "clean", "transform")):
-            return "csv_processor"
-        return "analysis"
+    system_prompt = """You are a code generation agent that creates data analysis scripts.
 
-    def _extract_description(self, request):
-        words = request.lower()
-        for prefix in ("make a ", "create a ", "build a ", "write a ", "generate a "):
-            if words.startswith(prefix):
-                words = words[len(prefix):]
-        return words.strip().capitalize() or "Data analysis"
+When the user describes what they want, generate a complete data analysis project.
+
+RULES:
+- Use pandas for data manipulation and matplotlib for visualization
+- Generate at minimum: main.py, data/sample.csv, requirements.txt
+- Include a realistic sample CSV dataset (at least 10 rows) relevant to the user's request
+- The script should load the CSV, perform analysis, print statistics, and save chart PNGs
+- Use `matplotlib.use("Agg")` for headless rendering
+- The script should be runnable with `python main.py`
+- requirements.txt should list pandas>=2.0, matplotlib>=3.7
+
+OUTPUT FORMAT:
+Return each file as a fenced code block with the filepath as the language tag:
+
+```main.py
+...
+```
+
+```data/sample.csv
+col1,col2
+...
+```
+
+```requirements.txt
+...
+```
+
+Only output the code blocks. No explanations."""
 
     def generate(self, request, output_dir):
-        script_type = self._detect_type(request)
-        desc = self._extract_description(request)
-        files = []
-
-        if script_type == "visualizer":
-            content = render_template("data", "data_visualizer.py.tpl", {
-                "description": desc,
-                "default_csv": "data/input.csv",
-                "app_name": desc,
-            })
-        elif script_type == "csv_processor":
-            content = render_template("data", "csv_processor.py.tpl", {
-                "description": desc,
-                "script_name": "main.py",
-                "process_logic": (
-                    "# Add processing logic here\n"
-                    "    for row in rows:\n"
-                    "        pass  # transform each row"
-                ),
-            })
-        else:
-            content = render_template("data", "pandas_analysis.py.tpl", {
-                "description": desc,
-                "default_csv": "data/input.csv",
-            })
-
-        files.append(self.write_file(output_dir, "main.py", content))
-
-        # Create sample data directory
-        os.makedirs(os.path.join(output_dir, "data"), exist_ok=True)
-
-        sample_csv = "name,value,category\nAlpha,10,A\nBeta,25,B\nGamma,15,A\nDelta,30,B\nEpsilon,20,A\n"
-        files.append(self.write_file(output_dir, "data/input.csv", sample_csv))
-
-        # requirements.txt
-        files.append(self.write_file(output_dir, "requirements.txt", "pandas>=2.0\nmatplotlib>=3.7\n"))
-
-        return files
+        return self._generate_with_llm(request, output_dir)
 
     def plan(self, request):
-        script_type = self._detect_type(request)
-        desc = self._extract_description(request)
         return [
-            f"[data] Generate {script_type} script: {desc}",
-            "[data] Create main.py",
-            "[data] Create data/ directory with sample CSV",
-            "[data] Generate requirements.txt",
+            f"[data] Ask Claude to design a data analysis script for: {request}",
+            "[data] Generate main.py, data/sample.csv, requirements.txt",
         ]

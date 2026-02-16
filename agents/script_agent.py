@@ -1,13 +1,6 @@
-"""Script Agent - generates Python scripts and automation."""
+"""Script Agent - generates Python scripts using Claude."""
 
-import re
 from agents.base import BaseAgent
-from utils.template_engine import render_template
-
-
-def _safe_str(value):
-    """Escape a value for safe embedding in generated Python source."""
-    return repr(str(value))
 
 
 class ScriptAgent(BaseAgent):
@@ -15,58 +8,34 @@ class ScriptAgent(BaseAgent):
     description = "Generates Python scripts for automation and file processing"
     category = "script"
 
-    def _detect_type(self, request):
-        """Detect which script template to use."""
-        lower = request.lower()
-        if any(w in lower for w in ("file", "rename", "move", "copy", "process", "convert")):
-            return "file_processor"
-        if any(w in lower for w in ("schedule", "cron", "interval", "periodic", "monitor")):
-            return "scheduler"
-        return "basic"
+    system_prompt = """You are a code generation agent that creates Python automation scripts.
 
-    def _extract_description(self, request):
-        words = request.lower()
-        for prefix in ("make a ", "create a ", "build a ", "write a ", "generate a ", "make a script to "):
-            if words.startswith(prefix):
-                words = words[len(prefix):]
-        return words.strip().capitalize() or "Utility script"
+When the user describes what they want, generate a complete, working script.
+
+RULES:
+- Use Python stdlib only — no pip dependencies unless truly necessary
+- Generate at minimum: main.py
+- The script should do something real and useful based on the user's description
+- Include proper error handling (file not found, permissions, etc.)
+- Include a clear usage message if command-line arguments are expected
+- Use if __name__ == "__main__" pattern
+- The script should be runnable with `python main.py`
+- Only add requirements.txt if non-stdlib packages are used
+
+OUTPUT FORMAT:
+Return each file as a fenced code block with the filepath as the language tag:
+
+```main.py
+...
+```
+
+Only output the code blocks. No explanations."""
 
     def generate(self, request, output_dir):
-        script_type = self._detect_type(request)
-        desc = self._extract_description(request)
-        files = []
-
-        if script_type == "file_processor":
-            content = render_template("script", "file_processor.py.tpl", {
-                "description": desc,
-                "script_name": "main.py",
-                "process_logic": (
-                    'print(f"Processing: {filepath}")\n'
-                    '    # Add your processing logic here'
-                ),
-            })
-        elif script_type == "scheduler":
-            content = render_template("script", "scheduler.py.tpl", {
-                "description": desc,
-                "task_body": 'print("Task executed.")',
-                "interval": "60",
-            })
-        else:
-            content = render_template("script", "basic_script.py.tpl", {
-                "description": desc,
-                "main_body": (
-                    'print("Running: " + ' + _safe_str(desc) + ')\n'
-                    '    # Add your logic here'
-                ),
-            })
-
-        files.append(self.write_file(output_dir, "main.py", content))
-        return files
+        return self._generate_with_llm(request, output_dir)
 
     def plan(self, request):
-        script_type = self._detect_type(request)
-        desc = self._extract_description(request)
         return [
-            f"[script] Generate {script_type} script: {desc}",
-            f"[script] Create main.py",
+            f"[script] Ask Claude to design a script for: {request}",
+            "[script] Generate main.py",
         ]
