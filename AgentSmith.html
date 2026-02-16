@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentSmith</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0e1117;
+            --surface: #161b22;
+            --surface2: #1c2129;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --purple: #bc8cff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--green);
+            letter-spacing: 0.02em;
+        }
+
+        header .subtitle {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Agent Cards */
+        .agents-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .agent-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .agent-card.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
+        }
+
+        .agent-card .agent-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .agent-card .agent-desc {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        /* Command Bar */
+        .command-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .command-bar input {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .command-bar input:focus {
+            border-color: var(--accent);
+        }
+
+        .command-bar input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-generate {
+            background: var(--green);
+            color: var(--bg);
+            border-color: var(--green);
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        .btn-dryrun {
+            background: transparent;
+            color: var(--yellow);
+            border-color: var(--yellow);
+        }
+
+        .btn-dryrun:hover:not(:disabled) {
+            background: rgba(210, 153, 34, 0.1);
+        }
+
+        /* Activity Log */
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+        }
+
+        .activity-log {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 300px;
+            max-height: 520px;
+            overflow-y: auto;
+            margin-bottom: 24px;
+            font-size: 0.88rem;
+        }
+
+        .activity-log:empty::after {
+            content: "Waiting for instructions...";
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        .log-entry {
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .log-request {
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .log-step {
+            padding: 3px 0;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .log-step::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 10px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-dim);
+        }
+
+        .log-step.classify::before { background: var(--yellow); }
+        .log-step.delegate::before { background: var(--purple); }
+        .log-step.working::before { background: var(--accent); }
+        .log-step.done::before { background: var(--green); }
+        .log-step.plan::before { background: var(--yellow); }
+        .log-step.error::before { background: var(--red); }
+
+        .log-step .dim { color: var(--text-dim); }
+
+        .log-files {
+            margin-top: 6px;
+            padding-left: 16px;
+        }
+
+        .log-files li {
+            list-style: none;
+            color: var(--green);
+            font-size: 0.82rem;
+            padding: 1px 0;
+        }
+
+        .log-files li::before {
+            content: "  ";
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--text-dim);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* History */
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 12px;
+        }
+
+        .history-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .history-card .hc-request {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .history-card .hc-meta {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        .history-card .hc-path {
+            font-size: 0.78rem;
+            color: var(--green);
+            word-break: break-all;
+        }
+
+        .empty-state {
+            color: var(--text-dim);
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AgentSmith</h1>
+        <span class="subtitle">Multi-Agent Code Generation</span>
+    </header>
+
+    <main>
+        <div class="agents-row" id="agentsRow"></div>
+
+        <div class="command-bar">
+            <input type="text" id="requestInput" placeholder='Describe what you want to build... e.g. "build me a todo web app"' autocomplete="off">
+            <button class="btn btn-generate" id="btnGenerate" onclick="doGenerate()">Generate</button>
+            <button class="btn btn-dryrun" id="btnDryRun" onclick="doDryRun()">Dry Run</button>
+        </div>
+
+        <div class="section-label">Activity Log</div>
+        <div class="activity-log" id="activityLog"></div>
+
+        <div class="section-label">History</div>
+        <div id="historySection">
+            <span class="empty-state">No generations yet.</span>
+        </div>
+    </main>
+
+    <script>
+        const agentsRow = document.getElementById("agentsRow");
+        const activityLog = document.getElementById("activityLog");
+        const historySection = document.getElementById("historySection");
+        const requestInput = document.getElementById("requestInput");
+        const btnGenerate = document.getElementById("btnGenerate");
+        const btnDryRun = document.getElementById("btnDryRun");
+
+        let agents = [];
+        let historyItems = [];
+        let busy = false;
+
+        // Load agents on startup
+        fetch("/api/agents")
+            .then(r => r.json())
+            .then(data => {
+                agents = data;
+                agentsRow.innerHTML = data.map(a =>
+                    `<div class="agent-card" id="card-${a.name}">
+                        <div class="agent-name">${a.name}</div>
+                        <div class="agent-desc">${a.description}</div>
+                    </div>`
+                ).join("");
+            });
+
+        // Enter key triggers generate
+        requestInput.addEventListener("keydown", e => {
+            if (e.key === "Enter" && !busy) doGenerate();
+        });
+
+        function setBusy(state) {
+            busy = state;
+            btnGenerate.disabled = state;
+            btnDryRun.disabled = state;
+            requestInput.disabled = state;
+        }
+
+        function clearActiveCards() {
+            document.querySelectorAll(".agent-card.active").forEach(c => c.classList.remove("active"));
+        }
+
+        function scrollLog() {
+            activityLog.scrollTop = activityLog.scrollHeight;
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function addEntry() {
+            const entry = document.createElement("div");
+            entry.className = "log-entry";
+            activityLog.appendChild(entry);
+            scrollLog();
+            return entry;
+        }
+
+        function addStep(entry, cls, html) {
+            const step = document.createElement("div");
+            step.className = `log-step ${cls}`;
+            step.innerHTML = html;
+            entry.appendChild(step);
+            scrollLog();
+            return step;
+        }
+
+        async function doGenerate() {
+            const req = requestInput.value.trim();
+            if (!req) return;
+
+            setBusy(true);
+            clearActiveCards();
+            const entry = addEntry();
+
+            entry.innerHTML = `<div class="log-request">&gt; ${escHtml(req)}</div>`;
+
+            addStep(entry, "classify", `<span class="spinner"></span>Classifying request...`);
+            await delay(600);
+
+            try {
+                const res = await fetch("/api/generate", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({request: req}),
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    addStep(entry, "error", `Error: ${escHtml(data.error)}`);
+                    setBusy(false);
+                    return;
+                }
+
+                // Update classify step
+                entry.querySelector(".log-step.classify").innerHTML =
+                    `Classified as <strong>${data.category}</strong> ` +
+                    `<span class="dim">(${formatScores(data.scores)})</span>`;
+
+                // Highlight agent card
+                const card = document.getElementById(`card-${data.agent}`);
+                if (card) card.classList.add("active");
+
+                addStep(entry, "delegate", `Delegating to <strong>${data.agent}</strong> agent...`);
+                await delay(400);
+
+                addStep(entry, "working", `<span class="spinner"></span>Generating files...`);
+                await delay(500);
+
+                // Replace working step
+                const workingStep = entry.querySelector(".log-step.working");
+                workingStep.className = "log-step done";
+                workingStep.innerHTML = `Generated <strong>${data.files.length}</strong> file(s) in <strong>${escHtml(data.output_dir)}</strong>`;
+
+                const fileList = document.createElement("ul");
+                fileList.className = "log-files";
+                data.files.forEach(f => {
+                    const li = document.createElement("li");
+                    li.textContent = f;
+                    fileList.appendChild(li);
+                });
+                entry.appendChild(fileList);
+
+                // Add to history
+                historyItems.push(data);
+                renderHistory();
+
+                requestInput.value = "";
+            } catch (err) {
+                addStep(entry, "error", `Network error: ${escHtml(err.message)}`);
+            }
+
+            setBusy(false);
+            clearActiveCards();
+            scrollLog();
+        }
+
+        async function doDryRun() {
+            const req = requestInput.value.trim();
+            if (!req) return;
+
+            setBusy(true);
+            clearActiveCards();
+            const entry = addEntry();
+
+            entry.innerHTML = `<div class="log-request">&gt; ${escHtml(req)} <span class="dim">[dry run]</span></div>`;
+
+            addStep(entry, "classify", `<span class="spinner"></span>Classifying request...`);
+            await delay(600);
+
+            try {
+                const res = await fetch("/api/dry-run", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({request: req}),
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    addStep(entry, "error", `Error: ${escHtml(data.error)}`);
+                    setBusy(false);
+                    return;
+                }
+
+                entry.querySelector(".log-step.classify").innerHTML =
+                    `Classified as <strong>${data.category}</strong> ` +
+                    `<span class="dim">(${formatScores(data.scores)})</span>`;
+
+                const card = document.getElementById(`card-${data.agent}`);
+                if (card) card.classList.add("active");
+
+                addStep(entry, "delegate", `Would delegate to <strong>${data.agent}</strong> agent`);
+                await delay(300);
+
+                data.plan.forEach(step => {
+                    addStep(entry, "plan", escHtml(step));
+                });
+            } catch (err) {
+                addStep(entry, "error", `Network error: ${escHtml(err.message)}`);
+            }
+
+            setBusy(false);
+            clearActiveCards();
+            scrollLog();
+        }
+
+        function renderHistory() {
+            if (historyItems.length === 0) {
+                historySection.innerHTML = `<span class="empty-state">No generations yet.</span>`;
+                return;
+            }
+            historySection.innerHTML = `<div class="history-grid">${
+                historyItems.slice().reverse().map(h =>
+                    `<div class="history-card">
+                        <div class="hc-request">${escHtml(h.request)}</div>
+                        <div class="hc-meta">${h.agent} agent &middot; ${h.files.length} file(s)</div>
+                        <div class="hc-path">${escHtml(h.output_dir)}</div>
+                    </div>`
+                ).join("")
+            }</div>`;
+        }
+
+        function formatScores(scores) {
+            return Object.entries(scores)
+                .map(([k, v]) => `${k}:${v}`)
+                .join(" ");
+        }
+
+        function escHtml(str) {
+            const d = document.createElement("div");
+            d.textContent = str;
+            return d.innerHTML;
+        }
+    </script>
+</body>
+</html>
