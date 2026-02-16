@@ -6,7 +6,7 @@ import re
 import anthropic
 
 MODEL = "claude-sonnet-4-5-20250929"
-MAX_TOKENS = 8192
+MAX_TOKENS = 16384
 
 
 def get_client():
@@ -36,27 +36,58 @@ def generate_code(system_prompt, user_request):
 def parse_files(response):
     """Extract (filename, content) pairs from fenced code blocks.
 
-    Expected format from Claude:
-        ```filename.py
-        code here
+    Handles multiple formats Claude may use:
+        ```filename.py           (filepath as language tag)
+        ```python filename.py    (language then filepath)
+        ```python                (language tag, filename in first comment line)
+        # filename.py
+        ...
         ```
 
     Returns list of (relative_path, content) tuples.
     """
     files = []
     pattern = re.compile(
-        r"```(\S+?)\n(.*?)```",
+        r"```(\S+?)(?:[ \t]+(\S+?))?\n(.*?)```",
         re.DOTALL,
     )
+
+    # Pattern to detect a filepath in a comment on the first line
+    comment_path_re = re.compile(
+        r"^(?:#|//|/\*|<!--)\s*(.+?\.\w+)\s*(?:\*/|-->)?\s*\n",
+    )
+
     for match in pattern.finditer(response):
-        filename = match.group(1)
-        content = match.group(2)
-        # Skip blocks that look like just a language tag (e.g. ```python)
-        # A filename must contain a dot or slash
-        if "." not in filename and "/" not in filename:
+        tag = match.group(1)        # e.g. "app.py" or "python" or "css"
+        second = match.group(2)     # e.g. "app.py" after "python" (if present)
+        content = match.group(3)
+
+        # Determine filename
+        filename = None
+
+        # Case 1: tag itself is a filepath (contains . and /)
+        if "/" in tag and "." in tag:
+            filename = tag
+        # Case 2: second token is a filepath (```python app.py)
+        elif second and "." in second:
+            filename = second
+        # Case 3: tag is a bare filename with extension (```style.css)
+        elif "." in tag and "/" not in tag:
+            filename = tag
+        # Case 4: tag is just a language, check first line for a filepath comment
+        else:
+            cm = comment_path_re.match(content)
+            if cm:
+                filename = cm.group(1).strip()
+                # Remove the comment line from content
+                content = content[cm.end():]
+
+        if not filename:
             continue
+
         # Strip a single trailing newline if present
         if content.endswith("\n"):
             content = content[:-1]
+
         files.append((filename, content))
     return files

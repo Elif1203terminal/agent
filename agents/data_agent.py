@@ -22,7 +22,9 @@ RULES:
 - requirements.txt should list pandas>=2.0, matplotlib>=3.7
 
 OUTPUT FORMAT:
-Return each file as a fenced code block with the filepath as the language tag:
+Return each file as a fenced code block where the FULL FILEPATH is used as the language tag.
+
+CRITICAL: Use the FULL path like ```data/sample.csv — NOT just ```csv.
 
 ```main.py
 ...

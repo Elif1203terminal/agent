@@ -13,7 +13,8 @@ class WebAgent(BaseAgent):
 When the user describes what they want, generate a complete, working Flask project.
 
 RULES:
-- Always generate these files at minimum: app.py, templates/index.html, static/style.css, requirements.txt
+- You MUST generate ALL of these files: app.py, templates/index.html, static/style.css, requirements.txt
+- ALL CSS goes in static/style.css — do NOT put CSS inline in the HTML, do NOT skip the CSS file
 - Use Flask for the backend
 - Make the HTML/CSS match the user's description (colors, theme, layout, style)
 - Include realistic sample data or functionality, not just placeholder text
@@ -21,9 +22,14 @@ RULES:
 - requirements.txt should list flask>=3.0 and any other pip packages used
 - Do NOT use any JavaScript frameworks — vanilla JS only if needed
 - Make it look polished and professional
+- Keep the CSS comprehensive but efficient — aim for quality over quantity
 
 OUTPUT FORMAT:
-Return each file as a fenced code block with the filepath as the language tag. Example:
+Return each file as a fenced code block where the FULL FILEPATH (including directories) is used as the language tag.
+
+CRITICAL: Use the FULL path like ```static/style.css and ```templates/index.html — NOT just ```css or ```html.
+
+Example:
 
 ```app.py
 from flask import Flask
