@@ -10,5 +10,8 @@ __pycache__/
 *.pyc
 .venv/
 
+# Secrets
+.env
+
 # Claude Code
 .claude/
