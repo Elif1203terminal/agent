@@ -23,10 +23,19 @@ class WebAgent(BaseAgent):
                 words = words[:-len(suffix)]
         return words.strip().title() or "My App"
 
+    def _is_dashboard(self, request):
+        """Check if the request is for a dashboard/charts app."""
+        lower = request.lower()
+        keywords = ("dashboard", "chart", "visualization", "analytics", "metrics")
+        return any(kw in lower for kw in keywords)
+
     def generate(self, request, output_dir):
         app_name = self._extract_app_name(request)
         safe_app_name = html.escape(app_name)
         files = []
+
+        if self._is_dashboard(request):
+            return self._generate_dashboard(app_name, safe_app_name, output_dir)
 
         # app.py
         content = render_template("web", "flask_app.py.tpl", {
@@ -60,8 +69,41 @@ class WebAgent(BaseAgent):
 
         return files
 
+    def _generate_dashboard(self, app_name, safe_app_name, output_dir):
+        """Generate a dashboard app with charts."""
+        files = []
+
+        content = render_template("web", "dashboard_app.py.tpl", {
+            "app_name": app_name,
+        })
+        files.append(self.write_file(output_dir, "app.py", content))
+
+        content = render_template("web", "dashboard_html.tpl", {
+            "app_name": safe_app_name,
+        })
+        files.append(self.write_file(output_dir, "templates/dashboard.html", content))
+
+        content = render_template("web", "dashboard_css.tpl", {
+            "primary_color": "#3498db",
+            "header_color": "#2c3e50",
+        })
+        files.append(self.write_file(output_dir, "static/style.css", content))
+
+        content = render_template("web", "requirements_txt.tpl", {})
+        files.append(self.write_file(output_dir, "requirements.txt", content))
+
+        return files
+
     def plan(self, request):
         app_name = self._extract_app_name(request)
+        if self._is_dashboard(request):
+            return [
+                f"[web] Create Flask dashboard: {app_name}",
+                "[web] Generate app.py with routes (index, /api/data)",
+                "[web] Generate templates/dashboard.html with Chart.js bar + doughnut charts",
+                "[web] Generate static/style.css (dashboard layout)",
+                "[web] Generate requirements.txt",
+            ]
         return [
             f"[web] Create Flask app: {app_name}",
             "[web] Generate app.py with routes (index, add, delete)",
