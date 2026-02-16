@@ -1,0 +1,13 @@
+# Generated output directories
+web_apps/
+apis/
+data_scripts/
+cli_tools/
+scripts/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude Code
+.claude/
