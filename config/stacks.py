@@ -1,6 +1,14 @@
 """Stack definitions mapping category to technology config."""
 
 STACKS = {
+    "static": {
+        "name": "Static Website",
+        "category": "web",
+        "expected_files": ["index.html", "style.css"],
+        "run_command": [],
+        "test_command": [],
+        "lint_command": [],
+    },
     "flask": {
         "name": "Flask Web App",
         "category": "web",
