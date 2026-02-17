@@ -1,0 +1,1 @@
+This file exists as a placeholder. The security agent uses regex pattern matching only — no LLM calls.

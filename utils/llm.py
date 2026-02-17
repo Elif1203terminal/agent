@@ -1,12 +1,16 @@
 """Claude API client for code generation."""
 
+import json
 import os
 import re
+import time
 
 import anthropic
 
-MODEL = "claude-sonnet-4-5-20250929"
-MAX_TOKENS = 16384
+from config.defaults import DEFAULTS
+
+MODEL = DEFAULTS["model"]
+MAX_TOKENS = DEFAULTS["max_tokens"]
 
 
 def get_client():
@@ -22,15 +26,59 @@ def get_client():
 
 
 def generate_code(system_prompt, user_request):
-    """Call Claude and return the raw text response."""
+    """Call Claude and return the raw text response. (Backward compat.)"""
+    return call_llm(system_prompt, user_request)
+
+
+def call_llm(system_prompt, user_message, response_format=None):
+    """Call Claude with optional structured JSON output.
+
+    Args:
+        system_prompt: System prompt string.
+        user_message: User message string.
+        response_format: If "json", appends instruction to return valid JSON
+                         and attempts to parse the response.
+
+    Returns:
+        Raw text string, or parsed dict/list if response_format="json".
+    """
     client = get_client()
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_request}],
-    )
-    return message.content[0].text
+
+    if response_format == "json":
+        system_prompt = system_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown fences, no commentary."
+
+    last_error = None
+    for attempt in range(2):
+        try:
+            message = client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            text = message.content[0].text
+
+            if response_format == "json":
+                # Strip markdown fences if model included them anyway
+                cleaned = text.strip()
+                if cleaned.startswith("```"):
+                    cleaned = re.sub(r"^```\w*\n?", "", cleaned)
+                    cleaned = re.sub(r"\n?```$", "", cleaned)
+                return json.loads(cleaned)
+
+            return text
+
+        except anthropic.APIError as e:
+            last_error = e
+            if attempt == 0:
+                time.sleep(2)
+                continue
+            raise
+        except json.JSONDecodeError:
+            # Return raw text if JSON parsing fails
+            return text
+
+    raise last_error
 
 
 def parse_files(response):

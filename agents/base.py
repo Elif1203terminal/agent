@@ -3,7 +3,7 @@
 import os
 from abc import ABC, abstractmethod
 
-from utils.llm import generate_code, parse_files
+from utils.llm import generate_code, call_llm, parse_files
 
 
 class BaseAgent(ABC):
@@ -24,6 +24,10 @@ class BaseAgent(ABC):
     def _call_llm(self, request):
         """Send the request to Claude with this agent's system prompt."""
         return generate_code(self.system_prompt, request)
+
+    def _call_llm_json(self, user_message):
+        """Send request and get structured JSON response."""
+        return call_llm(self.system_prompt, user_message, response_format="json")
 
     def _parse_files(self, response):
         """Extract (filename, content) pairs from the LLM response."""

@@ -1,0 +1,1 @@
+This file exists as a placeholder. The patch composer uses string aggregation only — no LLM calls.
