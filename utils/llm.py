@@ -50,13 +50,24 @@ def call_llm(system_prompt, user_message, response_format=None):
     last_error = None
     for attempt in range(2):
         try:
-            message = client.messages.create(
+            # Use streaming to avoid SDK timeout for large max_tokens
+            text = ""
+            stop_reason = None
+            with client.messages.stream(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
-            )
-            text = message.content[0].text
+            ) as stream:
+                for chunk in stream.text_stream:
+                    text += chunk
+                response_msg = stream.get_final_message()
+                stop_reason = response_msg.stop_reason
+
+            # Detect truncation — if stop_reason is "max_tokens", the
+            # response was cut off and files may be incomplete
+            if stop_reason == "max_tokens":
+                text += "\n\n<!-- TRUNCATED: Response hit token limit -->"
 
             if response_format == "json":
                 # Strip markdown fences if model included them anyway

@@ -34,14 +34,17 @@ class Orchestrator:
         self.readme_writer = ReadmeWriter()
 
     def create_state(self, request, category=None, max_iterations=None, output_dir=None):
-        """Create initial pipeline state."""
+        """Create initial pipeline state.
+
+        max_iterations is only used by run_full() for non-interactive (no callback) mode.
+        In human-in-the-loop mode (server/UI), there's no soft limit — the human decides.
+        The hard_max_iterations safety cap always applies.
+        """
         hard_max = DEFAULTS["hard_max_iterations"]
-        requested = max_iterations or DEFAULTS["max_iterations"]
-        capped = min(requested, hard_max)
 
         state = PipelineState(
             request=request,
-            max_iterations=capped,
+            max_iterations=max_iterations or hard_max,
             output_dir=output_dir or "",
         )
 
@@ -72,13 +75,10 @@ class Orchestrator:
         """
         hard_max = DEFAULTS["hard_max_iterations"]
 
-        # Hard guard: refuse to run if we've hit the ceiling
-        if len(state.iterations) >= state.max_iterations:
-            state.status = "done"
-            return state
+        # Hard safety guard only — the human decides when to stop
         if len(state.iterations) >= hard_max:
             state.status = "done"
-            state.errors.append(f"Hard iteration limit reached ({hard_max})")
+            state.errors.append(f"Hard safety limit reached ({hard_max}). Cannot run more iterations.")
             return state
 
         iteration_num = len(state.iterations) + 1
@@ -162,7 +162,8 @@ class Orchestrator:
         Args:
             request: User's natural language request.
             category: Optional override for classifier.
-            max_iterations: Max loop iterations (default 2).
+            max_iterations: Only used for non-interactive mode (no callback).
+                            With a callback, the human decides when to stop.
             output_dir: Where to write final files.
             on_iteration: Callback function(state, iteration) -> bool.
                           Called after each iteration with issues.
@@ -172,17 +173,20 @@ class Orchestrator:
         Returns:
             PipelineState with final results.
         """
-        state = self.create_state(request, category, max_iterations, output_dir)
+        hard_max = DEFAULTS["hard_max_iterations"]
+        # Non-interactive: use max_iterations (default 2). Interactive: hard_max only.
+        loop_limit = hard_max if on_iteration else min(max_iterations or 2, hard_max)
+
+        state = self.create_state(request, category, output_dir=output_dir)
         state = self.plan(state)
 
-        for i in range(state.max_iterations):
+        for i in range(loop_limit):
             state = self.run_iteration(state)
 
             if state.status == "done":
                 break
 
-            # If there are more iterations possible and we have issues
-            if i < state.max_iterations - 1 and state.status == "awaiting_approval":
+            if state.status == "awaiting_approval":
                 if on_iteration:
                     should_continue = on_iteration(state, state.iterations[-1])
                     if not should_continue:

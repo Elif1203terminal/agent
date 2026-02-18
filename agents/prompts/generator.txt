@@ -19,9 +19,16 @@ Rules:
 - Every file must be complete and immediately runnable — no placeholders, no TODOs.
 - Implement the spec FAITHFULLY. Every requirement in the spec must be reflected in the code.
 - Pay close attention to visual/styling requirements (colors, themes, layouts). If the spec says "dark theme", the entire page must use dark backgrounds and light text. Do not partially apply visual requirements.
-- If patch instructions are provided, apply ONLY those fixes. Do not refactor or improve other code.
 - Keep code simple and straightforward. No over-engineering.
 - For static sites: produce self-contained HTML/CSS/JS files. Inline nothing — CSS goes in style.css, JS goes in script.js, and HTML references them with relative paths (e.g. href="style.css", NOT href="/static/style.css").
 - For Flask apps: all CSS goes in static/style.css, templates in templates/. Use url_for('static', ...) in templates.
 - For FastAPI apps that serve HTML: put index.html in the project root (not inside static/). CSS and JS go in static/. Use relative paths in HTML (e.g. href="static/css/style.css" NOT href="/static/css/style.css") so the page works both when served by FastAPI and when opened directly as a file.
 - Do NOT add features beyond what the spec describes.
+
+PATCH MODE (when patch instructions are provided):
+- You will receive ONLY the files that need fixing, not all project files.
+- Output ONLY the fixed files. Do not output files that don't need changes.
+- Each fixed file must be COMPLETE — output the entire file, not just the changed parts.
+- Apply the fixes described in the patch instructions.
+- Do NOT refactor, improve, or change anything beyond what the patch instructions say.
+- CRITICAL: Make sure every function is COMPLETE. Do not cut off mid-function. If a function is long, still write it out fully. An incomplete function is worse than a simple one.

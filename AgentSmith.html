@@ -433,7 +433,7 @@
         let historyItems = [];
         let busy = false;
 
-        const PIPELINE_STAGES = ["planner", "generator", "reviewer", "tester", "security"];
+        const PIPELINE_STAGES = ["planner", "generator", "reviewer", "tester", "security", "readme_writer"];
 
         // Load agents on startup
         fetch("/api/agents")
@@ -497,7 +497,7 @@
             return step;
         }
 
-        function renderPipelineStages(entry, activeStage) {
+        function renderPipelineStages(entry, activeStage, allDone) {
             let existing = entry.querySelector(".pipeline-stages");
             if (!existing) {
                 existing = document.createElement("div");
@@ -508,7 +508,8 @@
                 const idx = PIPELINE_STAGES.indexOf(s);
                 const activeIdx = PIPELINE_STAGES.indexOf(activeStage);
                 let cls = "stage-pill";
-                if (idx < activeIdx) cls += " done";
+                if (allDone) cls += " done";
+                else if (idx < activeIdx) cls += " done";
                 else if (s === activeStage) cls += " active";
                 return `<span class="${cls}">${s}</span>`;
             }).join("");
@@ -557,10 +558,21 @@
 
             entry.innerHTML = `<div class="log-request">&gt; ${escHtml(req)}</div>`;
 
-            // Step 1: Planning
+            // Step 1: Planning — show spinner while waiting for API
             addStep(entry, "classify", `<span class="spinner"></span>Planning...`);
             renderPipelineStages(entry, "planner");
             highlightPipelineStage("planner");
+
+            // Animate through stages while waiting for the API response
+            let stageIndex = 0;
+            const stageTimer = setInterval(() => {
+                stageIndex++;
+                if (stageIndex < PIPELINE_STAGES.length) {
+                    const stage = PIPELINE_STAGES[stageIndex];
+                    renderPipelineStages(entry, stage);
+                    highlightPipelineStage(stage);
+                }
+            }, 4000);
 
             try {
                 const res = await fetch("/api/generate", {
@@ -569,6 +581,8 @@
                     body: JSON.stringify({request: req}),
                 });
                 const data = await res.json();
+
+                clearInterval(stageTimer);
 
                 if (data.error) {
                     addStep(entry, "error", `Error: ${escHtml(data.error)}`);
@@ -590,8 +604,10 @@
                     addStep(entry, "plan", `<span class="dim">Files:</span> ${data.file_manifest.map(escHtml).join(", ")}`);
                 }
 
+                // Show all stages as done
+                renderPipelineStages(entry, "", true);
+
                 // Show iteration results
-                renderPipelineStages(entry, "");
                 if (data.iterations) {
                     data.iterations.forEach(iter => renderIteration(entry, iter));
                 }
@@ -611,14 +627,14 @@
                     });
                     entry.appendChild(fileList);
                 } else if (data.status === "awaiting_approval" && data.job_id) {
+                    // Show stages up to where it stopped (not all done)
+                    renderPipelineStages(entry, "security");
+
                     // Show iterate/accept buttons
                     const btnRow = document.createElement("div");
                     btnRow.innerHTML = `
                         <button class="btn btn-iterate" onclick="doIterate('${data.job_id}', this.parentElement.parentElement)">Re-generate with fixes</button>
                         <button class="btn btn-accept" onclick="doAccept('${data.job_id}', this.parentElement.parentElement)">Accept as-is</button>
-                        <span class="dim" style="font-size:0.78rem; margin-left:8px;">
-                            ${data.total_iterations}/${data.iterations ? data.iterations.length : '?'} iteration(s) used
-                        </span>
                     `;
                     entry.appendChild(btnRow);
                 }
@@ -628,6 +644,7 @@
                 requestInput.value = "";
 
             } catch (err) {
+                clearInterval(stageTimer);
                 addStep(entry, "error", `Network error: ${escHtml(err.message)}`);
             }
 

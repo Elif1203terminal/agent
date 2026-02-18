@@ -9,7 +9,7 @@ class PatchComposer:
     name = "patch_composer"
 
     def run(self, state: PipelineState, all_issues) -> PipelineState:
-        state.status = "patching"
+        # Don't override status — orchestrator manages it
 
         if not all_issues:
             state.patch_instructions = ""

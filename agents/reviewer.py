@@ -26,8 +26,11 @@ class ReviewerAgent:
 
         prompt = _load_prompt()
 
-        # Build context: spec + all files
+        # Build context: stack + spec + all files
         parts = []
+
+        if state.stack:
+            parts.append(f"STACK: {state.stack}\n")
 
         if state.spec:
             parts.append(f"SPEC:\n{state.spec}\n")

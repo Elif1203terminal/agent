@@ -112,6 +112,7 @@ def api_agents():
         {"name": "tester", "description": "Runs lint and import checks (no LLM)"},
         {"name": "security", "description": "Scans for vulnerabilities (no LLM)"},
         {"name": "patch_composer", "description": "Aggregates issues into fix instructions (no LLM)"},
+        {"name": "readme_writer", "description": "Generates beginner-friendly README.md"},
     ])
     return jsonify(agents)
 
@@ -128,13 +129,10 @@ def api_generate():
 
     req = data["request"].strip()
     category = data.get("type")
-    max_iters = data.get("max_iterations", 2)
 
     output_dir = get_output_dir(category or "script", req)
 
-    # create_state enforces hard_max_iterations cap internally
     state = orchestrator.create_state(req, category=category,
-                                       max_iterations=max_iters,
                                        output_dir=output_dir)
     state = orchestrator.plan(state)
     state = orchestrator.run_iteration(state)
@@ -169,14 +167,11 @@ def api_iterate():
     if state.status == "done":
         return jsonify({"error": "Pipeline already completed"}), 400
 
-    # Double-check both soft and hard limits
+    # Safety check — hard limit only (human decides when to stop)
     hard_max = DEFAULTS["hard_max_iterations"]
-    if len(state.iterations) >= state.max_iterations:
-        return jsonify({"error": f"Max iterations reached ({state.max_iterations})"}), 400
     if len(state.iterations) >= hard_max:
-        return jsonify({"error": f"Hard iteration limit reached ({hard_max})"}), 400
+        return jsonify({"error": f"Safety limit reached ({hard_max} iterations). Cannot run more."}), 400
 
-    # run_iteration also checks internally, but belt-and-suspenders
     state = orchestrator.run_iteration(state)
 
     if state.status == "done":
