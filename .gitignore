@@ -12,6 +12,21 @@ __pycache__/
 
 # Secrets
 .env
+.env.*
+*.pem
+*.key
+
+# Data
+*.sqlite3
+*.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
 
 # Claude Code
 .claude/
