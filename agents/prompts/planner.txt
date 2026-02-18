@@ -14,6 +14,7 @@ Stack choices — pick the simplest one that works:
 - "script" — Python automation script.
 
 Rules:
+- If the user explicitly names a technology (e.g. "use fastapi", "with flask", "using pandas"), you MUST use that technology. Do NOT override the user's explicit choice.
 - Keep the file list minimal. Only include files that are strictly necessary.
 - Do NOT include test files — testing is handled separately.
 - Always include a requirements.txt if any third-party packages are needed.

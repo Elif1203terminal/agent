@@ -1,9 +1,24 @@
-"""Keyword-scoring request classifier."""
+"""Keyword-scoring request classifier with explicit tech override."""
 
 import re
 
 # Keywords that are prefix patterns (match word starts, e.g. "automat" -> "automation")
 _PREFIX_KEYWORDS = {"automat", "visuali"}
+
+# Explicit technology mentions that force a specific category + stack.
+# Checked BEFORE keyword scoring — if the user says "use fastapi", that wins.
+# Each entry: (regex_pattern, category, stack)
+EXPLICIT_TECH = [
+    (r'\bfast\s*api\b', "api", "fastapi"),
+    (r'\bfastapi\b', "api", "fastapi"),
+    (r'\bflask\b', "web", "flask"),
+    (r'\bdjango\b', "web", "flask"),      # closest stack we have
+    (r'\bexpress\b', "api", "fastapi"),    # closest stack we have
+    (r'\bargparse\b', "cli", "cli"),
+    (r'\bclick\b', "cli", "cli"),
+    (r'\bpandas\b', "data", "data"),
+    (r'\bmatplotlib\b', "data", "data"),
+]
 
 KEYWORDS = {
     "web": {
@@ -37,18 +52,32 @@ KEYWORDS = {
 def classify(request):
     """Score a request against each category and return the best match.
 
-    Returns (category, scores_dict).
+    If the user explicitly names a technology (e.g. "use fastapi"),
+    that overrides keyword scoring.
+
+    Returns (category, scores_dict).  scores_dict also contains
+    '_explicit_stack' if an explicit tech was detected.
     """
     text = request.lower()
+
+    # --- Explicit tech override ---
+    for pattern, category, stack in EXPLICIT_TECH:
+        if re.search(pattern, text, re.IGNORECASE):
+            scores = {cat: 0 for cat in KEYWORDS}
+            scores[category] = 100  # make the override obvious
+            scores["_explicit_stack"] = stack
+            return category, scores
+
+    # --- Normal keyword scoring ---
     scores = {}
     for category, kw_map in KEYWORDS.items():
         score = 0
         for keyword, weight in kw_map.items():
             if keyword in _PREFIX_KEYWORDS:
-                pattern = r'\b' + re.escape(keyword)
+                pat = r'\b' + re.escape(keyword)
             else:
-                pattern = r'\b' + re.escape(keyword) + r'\b'
-            if re.search(pattern, text):
+                pat = r'\b' + re.escape(keyword) + r'\b'
+            if re.search(pat, text):
                 score += weight
         scores[category] = score
 

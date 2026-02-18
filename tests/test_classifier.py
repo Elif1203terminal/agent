@@ -39,3 +39,37 @@ def test_scores_are_dict():
     assert isinstance(scores, dict)
     assert "web" in scores
     assert "api" in scores
+
+
+# --- Explicit tech override tests ---
+
+def test_explicit_fastapi_with_space():
+    """'use fast api' (with space) should classify as api with fastapi stack."""
+    cat, scores = classify("build a dark landing page. Use fast api")
+    assert cat == "api"
+    assert scores.get("_explicit_stack") == "fastapi"
+
+
+def test_explicit_fastapi_no_space():
+    cat, scores = classify("create an app using fastapi")
+    assert cat == "api"
+    assert scores.get("_explicit_stack") == "fastapi"
+
+
+def test_explicit_flask():
+    cat, scores = classify("build a todo app with flask")
+    assert cat == "web"
+    assert scores.get("_explicit_stack") == "flask"
+
+
+def test_explicit_pandas():
+    cat, scores = classify("process this file using pandas")
+    assert cat == "data"
+    assert scores.get("_explicit_stack") == "data"
+
+
+def test_explicit_overrides_keyword_score():
+    """Even if 'web' keywords score higher, explicit 'fastapi' wins."""
+    cat, scores = classify("build a web page template dashboard. Use fast api")
+    assert cat == "api"
+    assert scores.get("_explicit_stack") == "fastapi"

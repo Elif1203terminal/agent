@@ -1,4 +1,4 @@
-"""Reviewer agent — checks code for errors only. Strict scope, no style nits."""
+"""Reviewer agent — checks code for errors and spec compliance."""
 
 import os
 
@@ -14,7 +14,7 @@ def _load_prompt():
 
 
 class ReviewerAgent:
-    """Reviews generated code for functional errors only."""
+    """Reviews generated code for functional errors and spec compliance."""
 
     name = "reviewer"
 
@@ -26,8 +26,13 @@ class ReviewerAgent:
 
         prompt = _load_prompt()
 
-        # Build context: all files
-        parts = ["Review these files for errors:\n"]
+        # Build context: spec + all files
+        parts = []
+
+        if state.spec:
+            parts.append(f"SPEC:\n{state.spec}\n")
+
+        parts.append("FILES:\n")
         for f in state.current_files:
             parts.append(f"```{f.path}\n{f.content}\n```\n")
 
@@ -47,6 +52,5 @@ class ReviewerAgent:
                         suggestion=item.get("suggestion", ""),
                     ))
 
-        # Store issues on state for this stage
         state._review_issues = issues
         return state

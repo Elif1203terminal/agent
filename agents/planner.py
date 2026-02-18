@@ -23,20 +23,29 @@ class PlannerAgent:
         state.status = "planning"
         prompt = _load_prompt()
 
+        # If the stack was already locked by explicit tech detection,
+        # tell the planner to use it (don't let LLM override).
+        locked_stack = state.stack if state.stack else ""
+
         user_message = (
             f"Category: {state.category}\n"
             f"Request: {state.request}"
         )
+        if locked_stack:
+            user_message += f"\nIMPORTANT: The user explicitly requested the \"{locked_stack}\" stack. You MUST use stack: \"{locked_stack}\"."
 
         result = call_llm(prompt, user_message, response_format="json")
 
         if isinstance(result, dict):
             state.spec = result.get("spec", "")
             state.file_manifest = result.get("file_manifest", [])
-            state.stack = result.get("stack", CATEGORY_TO_STACK.get(state.category, "script"))
+            # Only let planner choose stack if not already locked
+            if not locked_stack:
+                state.stack = result.get("stack", CATEGORY_TO_STACK.get(state.category, "script"))
         else:
             # Fallback if JSON parsing failed — treat as spec text
             state.spec = str(result)
-            state.stack = CATEGORY_TO_STACK.get(state.category, "script")
+            if not locked_stack:
+                state.stack = CATEGORY_TO_STACK.get(state.category, "script")
 
         return state

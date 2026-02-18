@@ -47,9 +47,13 @@ class Orchestrator:
         if category:
             state.category = category
         else:
-            state.category, _ = classify(request)
+            state.category, scores = classify(request)
+            # If the user explicitly named a tech, lock the stack now
+            if "_explicit_stack" in scores:
+                state.stack = scores["_explicit_stack"]
 
-        state.stack = CATEGORY_TO_STACK.get(state.category, "script")
+        if not state.stack:
+            state.stack = CATEGORY_TO_STACK.get(state.category, "script")
         return state
 
     def plan(self, state: PipelineState) -> PipelineState:
