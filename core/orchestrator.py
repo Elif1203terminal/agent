@@ -14,6 +14,7 @@ from agents.reviewer import ReviewerAgent
 from agents.tester import TesterAgent
 from agents.security import SecurityAgent
 from agents.patch_composer import PatchComposer
+from agents.readme_writer import ReadmeWriter
 
 
 class Orchestrator:
@@ -30,6 +31,7 @@ class Orchestrator:
         self.tester = TesterAgent()
         self.security = SecurityAgent()
         self.patch_composer = PatchComposer()
+        self.readme_writer = ReadmeWriter()
 
     def create_state(self, request, category=None, max_iterations=None, output_dir=None):
         """Create initial pipeline state."""
@@ -126,6 +128,15 @@ class Orchestrator:
 
         return state
 
+    def generate_readme(self, state: PipelineState) -> PipelineState:
+        """Generate a README.md for the project. Runs after pipeline, 1 LLM call."""
+        # Skip if no files or README already exists
+        if not state.current_files:
+            return state
+        if any(f.path == "README.md" for f in state.current_files):
+            return state
+        return self.readme_writer.run(state)
+
     def write_files(self, state: PipelineState):
         """Write final files to disk."""
         if not state.output_dir:
@@ -181,6 +192,9 @@ class Orchestrator:
                     # No callback = no auto-looping, stop here
                     state.status = "done"
                     break
+
+        # Generate README before writing
+        state = self.generate_readme(state)
 
         # Write files
         if state.output_dir:

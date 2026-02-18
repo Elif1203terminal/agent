@@ -139,8 +139,9 @@ def api_generate():
     state = orchestrator.plan(state)
     state = orchestrator.run_iteration(state)
 
-    # If done (quality gates pass), write files
+    # If done (quality gates pass), generate README and write files
     if state.status == "done":
+        state = orchestrator.generate_readme(state)
         orchestrator.write_files(state)
 
     result = _state_to_dict(state)
@@ -179,6 +180,7 @@ def api_iterate():
     state = orchestrator.run_iteration(state)
 
     if state.status == "done":
+        state = orchestrator.generate_readme(state)
         orchestrator.write_files(state)
 
     result = _state_to_dict(state)
@@ -199,6 +201,7 @@ def api_approve():
         return jsonify({"error": "Job not found or expired"}), 404
 
     state.status = "done"
+    state = orchestrator.generate_readme(state)
     written = orchestrator.write_files(state)
 
     result = _state_to_dict(state)

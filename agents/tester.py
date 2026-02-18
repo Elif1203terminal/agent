@@ -1,10 +1,59 @@
 """Tester agent — runs lint and import checks in sandbox. Zero LLM calls."""
 
 import os
+import subprocess
+import sys
 
 from core.state import PipelineState, Issue
 from core.sandbox import run_in_sandbox
 from config.stacks import STACKS
+
+
+def _create_venv(work_dir, timeout=120):
+    """Create a temporary venv in work_dir and return the python path.
+
+    Returns (python_path, pip_path) or (None, None) on failure.
+    """
+    venv_dir = os.path.join(work_dir, ".venv")
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", venv_dir],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None, None
+
+    if os.name == "nt":
+        python = os.path.join(venv_dir, "Scripts", "python")
+        pip = os.path.join(venv_dir, "Scripts", "pip")
+    else:
+        python = os.path.join(venv_dir, "bin", "python")
+        pip = os.path.join(venv_dir, "bin", "pip")
+
+    if not os.path.isfile(python):
+        return None, None
+
+    return python, pip
+
+
+def _install_requirements(pip_path, work_dir, timeout=120):
+    """Install requirements.txt using the venv pip. Returns (success, output)."""
+    req_file = os.path.join(work_dir, "requirements.txt")
+    if not os.path.isfile(req_file):
+        return True, ""
+
+    try:
+        result = subprocess.run(
+            [pip_path, "install", "-q", "-r", req_file],
+            cwd=work_dir,
+            capture_output=True, text=True,
+            timeout=timeout,
+        )
+        return result.returncode == 0, result.stderr[:500]
+    except subprocess.TimeoutExpired:
+        return False, "pip install timed out"
+    except FileNotFoundError:
+        return False, f"pip not found at {pip_path}"
 
 
 class TesterAgent:
@@ -54,27 +103,61 @@ class TesterAgent:
                             suggestion="Fix the linting error",
                         ))
 
-        # Install requirements if present, then run import check
+        # Create a temp venv and install requirements before import check
         stack_config = STACKS.get(state.stack, {})
         test_cmd = stack_config.get("test_command", [])
 
         req_file = os.path.join(work_dir, "requirements.txt")
-        if test_cmd and os.path.isfile(req_file):
-            run_in_sandbox(["pip", "install", "-q", "-r", "requirements.txt"],
-                           cwd=work_dir, timeout=60)
+        has_requirements = os.path.isfile(req_file)
+        venv_python = None
 
+        if has_requirements and py_files:
+            python_path, pip_path = _create_venv(work_dir)
+            if python_path and pip_path:
+                venv_python = python_path
+                success, pip_output = _install_requirements(pip_path, work_dir)
+                if not success:
+                    issues.append(Issue(
+                        source="tester",
+                        severity="error",
+                        file="requirements.txt",
+                        line=None,
+                        message=f"Failed to install dependencies: {pip_output[:200]}",
+                        suggestion="Check that all packages in requirements.txt are valid and available on PyPI",
+                    ))
+
+        # Run import check using the venv python if available
         if test_cmd:
-            stdout, stderr, rc = run_in_sandbox(test_cmd, cwd=work_dir)
+            if venv_python:
+                # Replace "python3" with the venv python path
+                run_cmd = [venv_python if c == "python3" else c for c in test_cmd]
+            else:
+                run_cmd = test_cmd
+
+            try:
+                result = subprocess.run(
+                    run_cmd,
+                    cwd=work_dir,
+                    capture_output=True, text=True,
+                    timeout=30,
+                )
+                stdout, stderr, rc = result.stdout, result.stderr, result.returncode
+            except subprocess.TimeoutExpired:
+                stdout, stderr, rc = "", "Import check timed out", -1
+            except FileNotFoundError:
+                stdout, stderr, rc = "", f"Command not found: {run_cmd[0]}", -1
+
             if rc != 0:
                 error_text = stderr[:300]
-                # Missing third-party modules are a warning, not an error —
-                # the generated project includes requirements.txt for the user
                 if "ModuleNotFoundError" in error_text:
                     severity = "warning"
                     suggestion = "Run: pip install -r requirements.txt"
+                elif "SyntaxError" in error_text:
+                    severity = "error"
+                    suggestion = "Fix the syntax error in the generated code"
                 else:
                     severity = "error"
-                    suggestion = "Fix the import or syntax error"
+                    suggestion = "Fix the import or runtime error"
 
                 import_arg = test_cmd[-1] if test_cmd else ""
                 module = import_arg.replace("import ", "") if import_arg.startswith("import ") else import_arg
