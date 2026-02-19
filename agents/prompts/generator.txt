@@ -80,20 +80,46 @@ Crypto:
 - For symmetric encryption use: from cryptography.fernet import Fernet
 - For password hashing use: passlib (never roll your own)
 
-CSRF protection (Flask):
-- Every Flask app with HTML forms MUST use Flask-WTF.
-- Every POST form template MUST include {{ form.hidden_tag() }} or {{ csrf_token() }}.
+CSRF protection — stack-dependent:
+- Flask (cookie-based sessions): CSRF tokens ARE required.
+  Every Flask app with HTML forms MUST use Flask-WTF.
+  Every POST form template MUST include {{ form.hidden_tag() }} or {{ csrf_token() }}.
+- FastAPI with JWT (Authorization: Bearer header): CSRF is NOT required.
+  JWT travels in the Authorization header, not in a cookie. Browsers cannot automatically
+  attach it to cross-site requests, so CSRF attacks cannot occur. Do not add CSRF tokens.
+- FastAPI with cookie-based sessions: CSRF IS required — treat the same as Flask.
 
-Session security (Flask):
+XSS protection — stack-dependent:
+- Flask with Jinja2: auto-escaping is on by default. Never use {{ value | safe }} on
+  user-controlled data. Never use Markup() on untrusted input.
+- FastAPI returning JSON: XSS from server-rendered templates is not applicable.
+- FastAPI with Jinja2Templates: same rules as Flask apply.
+
+Access control — required for ALL stacks:
+- Every endpoint that reads or writes private user data MUST have an authentication check.
+  Flask:   @login_required decorator, or check current_user.is_authenticated
+  FastAPI: Depends(get_current_user) as a route parameter
+- Prevent IDOR (Insecure Direct Object Reference): when loading a resource by ID,
+  always verify the current user owns it.
+  WRONG: user = User.query.get(user_id)   # user_id from URL, no ownership check
+  RIGHT: user = User.query.filter_by(id=user_id, owner_id=current_user.id).first_or_404()
+
+Rate limiting — required on auth endpoints:
+- Flask: use Flask-Limiter on /login, /register, /reset-password routes.
+- FastAPI: use slowapi on /token, /login, /auth routes.
+- Without rate limiting, these endpoints are vulnerable to brute-force attacks.
+
+Session security (Flask only — not needed for JWT):
 - Always set these in app config:
   app.config['SESSION_COOKIE_HTTPONLY'] = True
   app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-Security headers:
-- For Flask/FastAPI apps that serve HTML: add an after_request hook that sets:
-  X-Frame-Options: SAMEORIGIN
-  X-Content-Type-Options: nosniff
-  X-XSS-Protection: 1; mode=block
+Security headers — ALL stacks that serve HTML:
+- Flask: add an @app.after_request hook that sets:
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+- FastAPI: add an @app.middleware("http") or use starlette.middleware.base to set the same headers.
 
 System commands:
 - Never pass user input to os.system(), subprocess with shell=True, eval(), or exec().

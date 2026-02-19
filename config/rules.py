@@ -192,6 +192,15 @@ SECURITY_PATTERNS = [
         None, None,
     ),
 
+    # --- HTTPS enforcement ---
+    (
+        re.compile(r"""app\.run\s*\((?!.*ssl_context)"""),
+        "warning",
+        "Flask app.run() without ssl_context — traffic is unencrypted in development",
+        "Add ssl_context='adhoc' for dev HTTPS, or deploy behind a TLS-terminating proxy in production",
+        None, None,
+    ),
+
     # --- Path traversal ---
     (
         re.compile(r"""\bopen\s*\(\s*request\.(args|form|values|json|files)""", re.IGNORECASE),
