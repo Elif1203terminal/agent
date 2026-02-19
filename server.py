@@ -167,10 +167,11 @@ def api_iterate():
     if state.status == "done":
         return jsonify({"error": "Pipeline already completed"}), 400
 
-    # Safety check — hard limit only (human decides when to stop)
+    # Safety check — respect both per-job limit and hard ceiling
     hard_max = DEFAULTS["hard_max_iterations"]
-    if len(state.iterations) >= hard_max:
-        return jsonify({"error": f"Safety limit reached ({hard_max} iterations). Cannot run more."}), 400
+    effective_max = min(state.max_iterations, hard_max)
+    if len(state.iterations) >= effective_max:
+        return jsonify({"error": f"Iteration limit reached ({effective_max}). Cannot run more."}), 400
 
     state = orchestrator.run_iteration(state)
 
