@@ -7,6 +7,7 @@ import sys
 from core.state import PipelineState, Issue
 from core.sandbox import run_in_sandbox
 from config.stacks import STACKS
+from agents.runtime_tester import RuntimeTester
 
 
 def _create_venv(work_dir, timeout=120):
@@ -169,6 +170,9 @@ class TesterAgent:
                     message=f"Import check: {error_text}",
                     suggestion=suggestion,
                 ))
+
+        # --- Runtime HTTP probes (Flask/FastAPI only) ---
+        issues.extend(RuntimeTester().run(state, work_dir))
 
         state._test_issues = issues
         state._lint_passed = lint_passed
