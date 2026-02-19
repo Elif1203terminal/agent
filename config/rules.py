@@ -216,6 +216,22 @@ SECURITY_PATTERNS = [
         "Use send_from_directory(BASE_DIR, filename) with a validated filename instead",
         None, None,
     ),
+
+    # --- CORS ---
+    (
+        re.compile(r"""allow_origins\s*=\s*\[?\s*["']\*["']"""),
+        "warning",
+        "CORS wildcard origin (allow_origins=['*']) allows any domain to call this API",
+        "Set explicit origins in production: allow_origins=['https://yourdomain.com']",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bCORSMiddleware\b(?!.*allow_origins)|\bCORS\s*\(\s*app\s*\)"""),
+        "warning",
+        "CORS applied with no explicit origin list — defaults may be permissive",
+        "Pass allow_origins=['https://yourdomain.com'] or read from an environment variable",
+        None, None,
+    ),
 ]
 
 # Patterns applied to HTML/Jinja2 template files (.html, .jinja2, .j2)

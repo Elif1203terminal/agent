@@ -52,5 +52,11 @@ Logging:
 File access:
 - For ANY app that serves user-specified files: state in the spec that all paths are resolved with os.path.realpath() and confined to a base directory.
 
+CORS:
+- For ANY FastAPI or Flask app that will be called from a browser: state in the spec that CORS origins must be configured explicitly (not wildcard). In development, restrict to localhost only. In production, restrict to the known frontend domain. Never use allow_origins=["*"] in production.
+
+OAuth / third-party login:
+- For ANY app that implements OAuth 2.0 (Google, GitHub, etc.): state in the spec that a cryptographically random state parameter MUST be generated (secrets.token_urlsafe), stored in the session, and verified on the callback before exchanging the authorization code. Omitting the state parameter enables CSRF on the OAuth flow.
+
 Never plan:
 - An app that stores plain-text passwords, uses MD5/SHA1/SHA256 for password hashing, or hardcodes secrets in source code.

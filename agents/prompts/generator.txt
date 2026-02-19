@@ -129,6 +129,21 @@ External resources:
 - Always load external scripts/styles over HTTPS, never HTTP.
 - Never use javascript: URIs.
 
+CORS — required for any app called from a browser:
+- NEVER use allow_origins=["*"] or CORSMiddleware with no origin list.
+- Development: allow_origins=["http://localhost:3000"] (or whatever the dev port is).
+- Production: allow_origins read from an environment variable (e.g. os.environ.get("ALLOWED_ORIGINS", "").split(",")).
+- Flask: use Flask-CORS with origins= kwarg. FastAPI: pass allow_origins to CORSMiddleware.
+  RIGHT (FastAPI): app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+  WRONG: app.add_middleware(CORSMiddleware, allow_origins=["*"])
+
+OAuth 2.0 (if the app uses third-party login):
+- ALWAYS generate a random state parameter before redirecting: state = secrets.token_urlsafe(32)
+- Store state in the session: session["oauth_state"] = state
+- On callback, verify BEFORE exchanging the code: assert request.args.get("state") == session.pop("oauth_state", None)
+- If state is missing or mismatched, return HTTP 400 — do NOT proceed with token exchange.
+- Omitting state verification enables CSRF on the OAuth callback.
+
 PATCH MODE (when patch instructions are provided):
 - You will receive ONLY the files that need fixing, not all project files.
 - Output ONLY the fixed files. Do not output files that don't need changes.
