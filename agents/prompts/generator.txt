@@ -28,20 +28,57 @@ Rules:
 SECURITY RULES (mandatory — violations will be caught and flagged as errors):
 These are non-negotiable. Every rule below applies to every file you generate.
 
-SQL and database:
-- ALWAYS use parameterized queries. NEVER build SQL with string formatting, f-strings, .format(), or + concatenation.
+Database:
+- ALWAYS use SQLAlchemy ORM for all database access. NEVER use raw cursor.execute() or engine.execute().
+- If raw SQL is unavoidable, use SQLAlchemy text() with bound parameters only.
   WRONG: cursor.execute(f"SELECT * FROM users WHERE id={user_id}")
-  RIGHT: cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
+  WRONG: cursor.execute("SELECT * FROM users WHERE id=" + user_id)
+  RIGHT: db.session.query(User).filter_by(id=user_id).first()
+  RIGHT: db.session.execute(text("SELECT * FROM users WHERE id=:uid"), {"uid": user_id})
 
 Passwords:
 - NEVER store plain-text passwords.
-- NEVER hash passwords with hashlib, MD5, SHA1, or SHA256.
-- For Flask: use flask_bcrypt or werkzeug.security (check_password_hash / generate_password_hash).
-- For FastAPI: use passlib with bcrypt.
+- NEVER hash passwords with hashlib (MD5, SHA1, SHA256, or any variant).
+- NEVER implement custom password hashing or encryption logic.
+- For Flask: use passlib with bcrypt — from passlib.hash import bcrypt; bcrypt.hash(password)
+- For FastAPI: use passlib with bcrypt or argon2 — from passlib.hash import argon2; argon2.hash(password)
+- Verify with: bcrypt.verify(input_password, stored_hash)
 
 Tokens and secrets:
 - Use the `secrets` module for any security token, reset link, or API key generation. NEVER use `random`.
   RIGHT: token = secrets.token_urlsafe(32)
+- ALL secrets, API keys, DB passwords, and credentials MUST come from environment variables.
+  RIGHT: os.environ.get('DATABASE_URL') or os.environ.get('SECRET_KEY')
+  WRONG: SECRET_KEY = "my-hard-coded-secret"
+
+Input validation (FastAPI):
+- EVERY route that accepts a request body MUST declare a Pydantic BaseModel parameter.
+- NEVER use `await request.json()` or `await request.body()` directly — always use Pydantic models.
+  WRONG: async def create_user(request: Request): data = await request.json()
+  RIGHT:  async def create_user(user: UserCreate): ...  # UserCreate is a BaseModel subclass
+
+Input validation (Flask):
+- Validate all user-supplied data before use. Use wtforms validators or manual checks.
+- NEVER pass request.args, request.form, or request.json values directly to DB queries or file paths.
+
+Logging:
+- NEVER log passwords, tokens, secrets, API keys, credit card numbers, SSNs, or any PII.
+- Log only non-sensitive identifiers: user_id, request_id, timestamps, status codes.
+  WRONG: logger.info(f"User login: {username} password={password}")
+  RIGHT:  logger.info(f"User login attempt: user_id={user_id}")
+
+File access:
+- NEVER pass user-supplied values directly to open(), send_file(), or os.path.join() as a path.
+- Always resolve and confine paths:
+  BASE_DIR = os.path.realpath('/allowed/directory')
+  safe_path = os.path.realpath(os.path.join(BASE_DIR, user_filename))
+  assert safe_path.startswith(BASE_DIR + os.sep)  # prevent traversal
+- Use send_from_directory(BASE_DIR, filename) instead of send_file() with user input.
+
+Crypto:
+- NEVER implement custom encryption, custom hashing algorithms, or XOR/Caesar/ROT ciphers.
+- For symmetric encryption use: from cryptography.fernet import Fernet
+- For password hashing use: passlib (never roll your own)
 
 CSRF protection (Flask):
 - Every Flask app with HTML forms MUST use Flask-WTF.
@@ -58,10 +95,9 @@ Security headers:
   X-Content-Type-Options: nosniff
   X-XSS-Protection: 1; mode=block
 
-Input handling:
-- Never pass user input directly to os.system(), subprocess with shell=True, eval(), or exec().
+System commands:
+- Never pass user input to os.system(), subprocess with shell=True, eval(), or exec().
 - Always use subprocess with shell=False and a list of arguments.
-- Validate file paths from user input — never use os.path.join with raw user input.
 
 External resources:
 - Always load external scripts/styles over HTTPS, never HTTP.

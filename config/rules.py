@@ -136,6 +136,77 @@ SECURITY_PATTERNS = [
         "Use the secrets module for security-sensitive random values: secrets.token_urlsafe(32)",
         None, None,
     ),
+
+    # --- Database ---
+    (
+        re.compile(r"""\bcursor\.(execute|executemany)\s*\("""),
+        "warning",
+        "Raw SQL cursor used — prefer SQLAlchemy ORM to eliminate injection risk and improve safety",
+        "Use SQLAlchemy ORM: db.session.query(Model).filter_by(...) or Model.query.all()",
+        None, None,
+    ),
+    (
+        re.compile(r"""\b(?:db\.engine|engine|connection)\.execute\s*\("""),
+        "warning",
+        "Raw SQLAlchemy engine/connection execute bypasses ORM safety — use session queries instead",
+        "Use db.session.execute() with text() and bound parameters, or use ORM model queries",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bhashlib\.sha256\s*\("""),
+        "warning",
+        "SHA-256 alone is not safe for password hashing (no salt, no iterations)",
+        "Use passlib with bcrypt or argon2: from passlib.hash import bcrypt; bcrypt.hash(password)",
+        None, None,
+    ),
+
+    # --- FastAPI input validation ---
+    (
+        re.compile(r"""await\s+request\.(json|body)\s*\(\)"""),
+        "error",
+        "FastAPI: reading raw request body bypasses Pydantic validation",
+        "Define a Pydantic BaseModel and declare it as a route parameter — FastAPI validates automatically",
+        None, None,
+    ),
+
+    # --- Sensitive data in logs/output ---
+    (
+        re.compile(
+            r"""(?:logging|logger)\s*\.\s*(?:debug|info|warning|error|critical)\s*\("""
+            r""".*\b(?:password|passwd|secret|token|api_key|credit_card|ssn|cvv)\b""",
+            re.IGNORECASE,
+        ),
+        "error",
+        "Sensitive field being written to logs — will be exposed in log files and monitoring systems",
+        "Remove sensitive fields from log statements; log only non-sensitive identifiers (e.g. user_id)",
+        None, None,
+    ),
+    (
+        re.compile(
+            r"""\bprint\s*\(.*\b(?:password|passwd|secret|api_key|token)\b""",
+            re.IGNORECASE,
+        ),
+        "warning",
+        "Sensitive field in print() statement — remove before production",
+        "Remove debug print statements that include passwords, secrets, or tokens",
+        None, None,
+    ),
+
+    # --- Path traversal ---
+    (
+        re.compile(r"""\bopen\s*\(\s*request\.(args|form|values|json|files)""", re.IGNORECASE),
+        "error",
+        "Path traversal risk — open() called with user-supplied path",
+        "Resolve and validate the path: safe = os.path.realpath(path); assert safe.startswith(BASE_DIR)",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bsend_file\s*\(\s*request\.(args|form|values|json)""", re.IGNORECASE),
+        "error",
+        "Path traversal risk — send_file() called with user-supplied path",
+        "Use send_from_directory(BASE_DIR, filename) with a validated filename instead",
+        None, None,
+    ),
 ]
 
 # Patterns applied to HTML/Jinja2 template files (.html, .jinja2, .j2)
