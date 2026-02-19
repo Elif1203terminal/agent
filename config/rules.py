@@ -79,4 +79,108 @@ SECURITY_PATTERNS = [
         "Use json.loads() or validate input source before unpickling",
         None, None,
     ),
+    (
+        re.compile(r"""\bshell\s*=\s*True\b"""),
+        "error",
+        "shell=True in subprocess is vulnerable to command injection",
+        "Use shell=False and pass arguments as a list: subprocess.run(['cmd', 'arg'])",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bhashlib\.(md5|sha1)\s*\("""),
+        "error",
+        "MD5/SHA1 are cryptographically broken — never use for passwords or security tokens",
+        "Use bcrypt or werkzeug.security.generate_password_hash() for passwords",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bredirect\s*\(\s*request\.(args|form|values|json)\b"""),
+        "error",
+        "Potential open redirect — redirect destination is user-controlled",
+        "Validate the URL against an allowlist before redirecting",
+        None, None,
+    ),
+    (
+        re.compile(r"""SESSION_COOKIE_HTTPONLY['"]\s*\]\s*=\s*False\b|(?<!\[)SESSION_COOKIE_HTTPONLY\s*=\s*False\b""", re.IGNORECASE),
+        "error",
+        "SESSION_COOKIE_HTTPONLY=False allows JavaScript to read the session cookie (XSS risk)",
+        "Set SESSION_COOKIE_HTTPONLY=True",
+        re.compile(r"""(SESSION_COOKIE_HTTPONLY['"]\s*\]\s*=\s*)False\b""", re.IGNORECASE),
+        r"\g<1>True",
+    ),
+    (
+        re.compile(r"""SESSION_COOKIE_SECURE['"]\s*\]\s*=\s*False\b|(?<!\[)SESSION_COOKIE_SECURE\s*=\s*False\b""", re.IGNORECASE),
+        "warning",
+        "SESSION_COOKIE_SECURE=False sends session cookies over plain HTTP",
+        "Set SESSION_COOKIE_SECURE=True for any internet-facing deployment",
+        None, None,
+    ),
+    (
+        re.compile(r"""execute\s*\(\s*["'].*["']\s*\.format\s*\("""),
+        "error",
+        "SQL injection risk — .format() used to build a query string",
+        "Use parameterized queries: cursor.execute('SELECT ... WHERE id=?', (val,))",
+        None, None,
+    ),
+    (
+        re.compile(r"""execute\s*\([^)]*["']\s*\+"""),
+        "error",
+        "SQL injection risk — string concatenation used to build a query",
+        "Use parameterized queries: cursor.execute('SELECT ... WHERE id=?', (val,))",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bimport\s+random\b"""),
+        "warning",
+        "random module is not cryptographically secure — do not use for tokens, keys, or passwords",
+        "Use the secrets module for security-sensitive random values: secrets.token_urlsafe(32)",
+        None, None,
+    ),
+]
+
+# Patterns applied to HTML/Jinja2 template files (.html, .jinja2, .j2)
+# Each entry: (pattern_regex, severity, message, suggestion, auto_fix_from, auto_fix_to)
+HTML_SECURITY_PATTERNS = [
+    (
+        re.compile(r"""\|\s*safe\b"""),
+        "error",
+        "Jinja2 '| safe' disables auto-escaping — XSS risk if applied to any user-controlled value",
+        "Remove '| safe' unless the value is 100% trusted server-side content",
+        None, None,
+    ),
+    (
+        re.compile(r"""\bMarkup\s*\("""),
+        "warning",
+        "Markup() marks content as safe HTML — only use on fully trusted, server-generated content",
+        "Ensure this value is never derived from user input",
+        None, None,
+    ),
+    (
+        re.compile(r"""src\s*=\s*["']http://""", re.IGNORECASE),
+        "error",
+        "External resource loaded over HTTP (not HTTPS) — vulnerable to man-in-the-middle attack",
+        "Use HTTPS for all external scripts, stylesheets, and resources",
+        None, None,
+    ),
+    (
+        re.compile(r"""href\s*=\s*["']http://""", re.IGNORECASE),
+        "warning",
+        "Link uses HTTP instead of HTTPS",
+        "Use HTTPS for all external links and resources",
+        None, None,
+    ),
+    (
+        re.compile(r"""javascript\s*:""", re.IGNORECASE),
+        "error",
+        "javascript: URI is a common XSS vector",
+        "Use event listeners (onclick, addEventListener) instead of javascript: URIs",
+        None, None,
+    ),
+    (
+        re.compile(r"""<\s*script[^>]+src\s*=\s*["'][^"']*["'][^>]*>""", re.IGNORECASE),
+        "warning",
+        "External script loaded without integrity attribute (Subresource Integrity)",
+        "Add integrity='sha384-...' and crossorigin='anonymous' to external script tags",
+        None, None,
+    ),
 ]

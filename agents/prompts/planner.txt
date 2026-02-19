@@ -21,3 +21,10 @@ Rules:
 - For static sites: use index.html, style.css, and script.js (if JS is needed). No requirements.txt. No Python files.
 - Do not over-engineer. A simple request should produce 2-4 files maximum.
 - Default to "static" for web category unless the request clearly needs a backend.
+
+Security requirements (mandatory — do not skip):
+- For ANY Flask app that includes forms, user input, or user accounts: add "Flask-WTF" to requirements.txt for CSRF protection.
+- For ANY app that handles user passwords: add "Flask-Bcrypt" (Flask) or "passlib[bcrypt]" (FastAPI) to requirements.txt. Never use hashlib for passwords.
+- For ANY app with user accounts or authentication: include session/token security in the spec. State explicitly: "Passwords must be hashed with bcrypt. Sessions must use HTTPONLY and SECURE cookies. All forms must include CSRF tokens."
+- For ANY Flask or FastAPI app that collects or stores personal data: state in the spec that security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection) must be set on all responses.
+- Never plan an app that stores passwords in plain text or uses MD5/SHA1 for password hashing.

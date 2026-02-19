@@ -25,6 +25,48 @@ Rules:
 - For FastAPI apps that serve HTML: put index.html in the project root (not inside static/). CSS and JS go in static/. Use relative paths in HTML (e.g. href="static/css/style.css" NOT href="/static/css/style.css") so the page works both when served by FastAPI and when opened directly as a file.
 - Do NOT add features beyond what the spec describes.
 
+SECURITY RULES (mandatory — violations will be caught and flagged as errors):
+These are non-negotiable. Every rule below applies to every file you generate.
+
+SQL and database:
+- ALWAYS use parameterized queries. NEVER build SQL with string formatting, f-strings, .format(), or + concatenation.
+  WRONG: cursor.execute(f"SELECT * FROM users WHERE id={user_id}")
+  RIGHT: cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
+
+Passwords:
+- NEVER store plain-text passwords.
+- NEVER hash passwords with hashlib, MD5, SHA1, or SHA256.
+- For Flask: use flask_bcrypt or werkzeug.security (check_password_hash / generate_password_hash).
+- For FastAPI: use passlib with bcrypt.
+
+Tokens and secrets:
+- Use the `secrets` module for any security token, reset link, or API key generation. NEVER use `random`.
+  RIGHT: token = secrets.token_urlsafe(32)
+
+CSRF protection (Flask):
+- Every Flask app with HTML forms MUST use Flask-WTF.
+- Every POST form template MUST include {{ form.hidden_tag() }} or {{ csrf_token() }}.
+
+Session security (Flask):
+- Always set these in app config:
+  app.config['SESSION_COOKIE_HTTPONLY'] = True
+  app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+Security headers:
+- For Flask/FastAPI apps that serve HTML: add an after_request hook that sets:
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+
+Input handling:
+- Never pass user input directly to os.system(), subprocess with shell=True, eval(), or exec().
+- Always use subprocess with shell=False and a list of arguments.
+- Validate file paths from user input — never use os.path.join with raw user input.
+
+External resources:
+- Always load external scripts/styles over HTTPS, never HTTP.
+- Never use javascript: URIs.
+
 PATCH MODE (when patch instructions are provided):
 - You will receive ONLY the files that need fixing, not all project files.
 - Output ONLY the fixed files. Do not output files that don't need changes.
