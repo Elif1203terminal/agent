@@ -183,6 +183,17 @@
             background: rgba(63, 185, 80, 0.1);
         }
 
+        .deploy-controls { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+        .deploy-select   { background: var(--surface2); color: var(--text);
+                           border: 1px solid var(--border); border-radius: 6px;
+                           padding: 5px 10px; font-size: 0.82rem; font-family: inherit; }
+        .btn-deploy      { background: transparent; color: var(--accent);
+                           border-color: var(--accent); font-size: 0.82rem; padding: 6px 14px; }
+        .btn-deploy:hover:not(:disabled) { background: rgba(88,166,255,0.1); }
+        .deploy-section  { margin-top: 8px; padding-left: 16px; }
+        .deploy-url a    { color: var(--green); text-decoration: none; }
+        .deploy-url a:hover { text-decoration: underline; }
+
         /* Activity Log */
         .section-label {
             font-size: 0.8rem;
@@ -752,12 +763,81 @@
                         });
                         entry.appendChild(fileList);
                     }
+
+                    if (data.stack === "flask" || data.stack === "fastapi") {
+                        const deploySection = document.createElement("div");
+                        deploySection.className = "deploy-section";
+                        deploySection.innerHTML = `
+                            <div class="deploy-controls">
+                                <select class="deploy-select" id="deploy-platform-${escHtml(data.job_id)}">
+                                    <option value="fly">Fly.io (free)</option>
+                                    <option value="oracle">Oracle Cloud (free)</option>
+                                    <option value="railway">Railway</option>
+                                </select>
+                                <button class="btn btn-deploy" id="btn-deploy-${escHtml(data.job_id)}"
+                                    onclick="doDeploy('${escHtml(data.job_id)}',
+                                                      this.closest('.log-entry'))">
+                                    Deploy
+                                </button>
+                            </div>`;
+                        entry.appendChild(deploySection);
+                    }
                 }
             } catch (err) {
                 addStep(entry, "error", `Network error: ${escHtml(err.message)}`);
             }
 
             setBusy(false);
+            scrollLog();
+        }
+
+        async function doDeploy(jobId, entry) {
+            const sel = document.getElementById(`deploy-platform-${jobId}`);
+            const platform = sel ? sel.value : "fly";
+            const platformLabel = sel ? sel.options[sel.selectedIndex].text : "Fly.io (free)";
+            const controls = entry.querySelector(".deploy-controls");
+            if (controls) controls.style.display = "none";
+
+            const section = entry.querySelector(".deploy-section");
+            const spinner = document.createElement("div");
+            spinner.className = "log-step working";
+            spinner.innerHTML = `<span class="spinner"></span>Deploying to ${escHtml(platformLabel)}...`;
+            section.appendChild(spinner);
+
+            try {
+                const res = await fetch("/api/deploy", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({job_id: jobId, platform}),
+                });
+                const data = await res.json();
+                spinner.remove();
+
+                if (data.deploy_error) {
+                    const el = document.createElement("div");
+                    el.className = "log-step error";
+                    el.textContent = `Deploy failed: ${data.deploy_error}`;
+                    section.appendChild(el);
+                } else if (data.deploy_url) {
+                    const el = document.createElement("div");
+                    el.className = "log-step done deploy-url";
+                    el.innerHTML = `Live at: <a href="${escHtml(data.deploy_url)}"
+                        target="_blank" rel="noopener">${escHtml(data.deploy_url)}</a>`;
+                    section.appendChild(el);
+                    (data.deploy_issues || []).forEach(issue => {
+                        const w = document.createElement("div");
+                        w.className = "issue-warning";
+                        w.textContent = `[WARNING] ${issue.file}: ${issue.message}`;
+                        section.appendChild(w);
+                    });
+                }
+            } catch (err) {
+                spinner.remove();
+                const el = document.createElement("div");
+                el.className = "log-step error";
+                el.textContent = `Network error: ${err.message}`;
+                section.appendChild(el);
+            }
             scrollLog();
         }
 

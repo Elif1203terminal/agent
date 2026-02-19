@@ -11,6 +11,7 @@ from manager.agent import ManagerAgent
 from core.orchestrator import Orchestrator
 from config.defaults import DEFAULTS
 from utils.folder_naming import get_output_dir
+from agents.deployer import DeployerAgent
 
 app = Flask(__name__)
 manager = ManagerAgent()
@@ -57,6 +58,17 @@ def _get_job_state(job_id):
             _jobs.pop(job_id, None)
         return None
     return job["state"]
+
+
+def _issue_to_dict(issue) -> dict:
+    return {
+        "source": issue.source,
+        "severity": issue.severity,
+        "file": issue.file,
+        "line": issue.line,
+        "message": issue.message,
+        "suggestion": issue.suggestion,
+    }
 
 
 def _state_to_dict(state):
@@ -204,6 +216,29 @@ def api_approve():
     result["job_id"] = job_id
     result["written_files"] = written
     return jsonify(result)
+
+
+@app.route("/api/deploy", methods=["POST"])
+def api_deploy():
+    """Deploy an approved job to the specified platform (default: fly)."""
+    data = request.get_json(silent=True) or {}
+    job_id = data.get("job_id", "").strip()
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    state = job["state"]
+    if state.status != "done":
+        return jsonify({"error": "Job must be approved (status=done) before deploying"}), 400
+    platform = data.get("platform", "fly")
+    result = DeployerAgent().run(state, state.output_dir, platform=platform)
+    return jsonify({
+        **_state_to_dict(state),
+        "deploy_url":    result.get("url"),
+        "deploy_error":  result.get("error"),
+        "deploy_issues": [_issue_to_dict(i) for i in result.get("issues", [])],
+        "platform":      platform,
+    })
 
 
 @app.route("/api/dry-run", methods=["POST"])
