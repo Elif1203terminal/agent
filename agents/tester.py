@@ -9,6 +9,7 @@ from core.sandbox import run_in_sandbox
 from config.stacks import STACKS
 from agents.runtime_tester import RuntimeTester
 from agents.idor_template import IDORTemplateGenerator
+from agents.auth_template import AuthAbuseTemplateGenerator
 
 
 def _create_venv(work_dir, timeout=120):
@@ -177,6 +178,9 @@ class TesterAgent:
 
         # --- IDOR test stub generation (Flask/FastAPI only) ---
         issues.extend(IDORTemplateGenerator().run(state, work_dir))
+
+        # --- Auth abuse test stub generation (Flask/FastAPI only) ---
+        issues.extend(AuthAbuseTemplateGenerator().run(state, work_dir))
 
         state._test_issues = issues
         state._lint_passed = lint_passed
