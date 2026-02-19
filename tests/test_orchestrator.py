@@ -47,11 +47,12 @@ def _mock_patch_run(state, issues):
 
 
 def test_create_state():
+    from config.defaults import DEFAULTS
     orch = Orchestrator()
     state = orch.create_state("build a web app", category="web")
     assert state.category == "web"
     assert state.request == "build a web app"
-    assert state.max_iterations == 2
+    assert state.max_iterations == DEFAULTS["hard_max_iterations"]
 
 
 def test_create_state_auto_classify():
@@ -121,7 +122,8 @@ def test_run_full_no_callback_stops_after_one():
          patch.object(orch.reviewer, "run", side_effect=_mock_reviewer_run), \
          patch.object(orch.tester, "run", side_effect=_mock_tester_run), \
          patch.object(orch.security, "run", side_effect=_mock_security_run), \
-         patch.object(orch.patch_composer, "run", side_effect=_mock_patch_run):
+         patch.object(orch.patch_composer, "run", side_effect=_mock_patch_run), \
+         patch.object(orch, "generate_readme", side_effect=lambda state: state):
 
         state = orch.run_full("test request", category="script")
         assert state.status == "done"

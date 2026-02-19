@@ -44,7 +44,7 @@ class Orchestrator:
 
         state = PipelineState(
             request=request,
-            max_iterations=max_iterations or hard_max,
+            max_iterations=min(max_iterations, hard_max) if max_iterations else hard_max,
             output_dir=output_dir or "",
         )
 
@@ -75,10 +75,11 @@ class Orchestrator:
         """
         hard_max = DEFAULTS["hard_max_iterations"]
 
-        # Hard safety guard only — the human decides when to stop
-        if len(state.iterations) >= hard_max:
+        # Respect both the per-state limit and the hard safety ceiling
+        effective_max = min(state.max_iterations, hard_max)
+        if len(state.iterations) >= effective_max:
             state.status = "done"
-            state.errors.append(f"Hard safety limit reached ({hard_max}). Cannot run more iterations.")
+            state.errors.append(f"Iteration limit reached ({effective_max}). Cannot run more iterations.")
             return state
 
         iteration_num = len(state.iterations) + 1
